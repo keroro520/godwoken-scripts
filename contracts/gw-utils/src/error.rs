@@ -52,6 +52,7 @@ pub enum Error {
     DuplicatedScriptHash,
     RegistryAddressNotFound,
     DuplicatedRegistryAddress,
+    NotFinalized,
 }
 
 impl From<SysError> for Error {
