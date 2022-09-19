@@ -9,7 +9,9 @@ use gw_utils::{
         },
         utils::search_lock_hash,
     },
+    ckb_std::debug,
     ckb_std::high_level::load_cell_lock,
+    finality::{is_finalized, obtain_max_timestmap_via_lock_script},
     gw_types::packed::{DepositLockArgs, DepositLockArgsReader, RollupActionUnionReader},
 };
 
@@ -59,16 +61,18 @@ pub fn main() -> Result<(), Error> {
         None => return Err(Error::RollupCellNotFound),
     };
 
-    let deposit_block_number: u64 = lock_args.deposit_block_number().unpack();
-    let last_finalized_block_number: u64 = global_state.last_finalized_block_number().unpack();
-
-    if deposit_block_number <= last_finalized_block_number {
-        // this custodian lock is already finalized, rollup will handle the logic
+    let config = load_rollup_config(&global_state.rollup_config_hash().unpack())?;
+    let max_timestamp = obtain_max_timestmap_via_lock_script(
+        &rollup_type_hash.pack(),
+        &config.custodian_script_type_hash(),
+    )?
+    .unwrap_or_default();
+    if is_finalized(&config, &rollup_type_hash.pack(), max_timestamp)? {
+        debug!("there are not-finalized custodian locked cells");
         return Ok(());
     }
 
-    // otherwise, the submitter try to prove the deposit is reverted.
-    let config = load_rollup_config(&global_state.rollup_config_hash().unpack())?;
+    // the submitter try to prove the deposit is reverted.
 
     // read the args
     let witness_args = load_witness_args(0, Source::GroupInput)?;

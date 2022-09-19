@@ -12,6 +12,7 @@ use gw_utils::ckb_std::{
     debug,
     high_level::{load_cell_lock_hash, QueryIter},
 };
+use gw_utils::finality::{is_finalized, obtain_max_timestmap_via_lock_script};
 use gw_utils::gw_types::packed::{
     CustodianLockArgs, CustodianLockArgsReader, RollupActionUnionReader,
     UnlockWithdrawalWitnessUnion, WithdrawalLockArgs,
@@ -163,13 +164,14 @@ pub fn main() -> Result<(), Error> {
                 }
             };
             // check finality
-            let withdrawal_block_number: u64 = lock_args.withdrawal_block_number().unpack();
-            let last_finalized_block_number: u64 =
-                global_state.last_finalized_block_number().unpack();
-
-            if withdrawal_block_number > last_finalized_block_number {
-                // not yet finalized
-                return Err(Error::InvalidArgs);
+            let config = load_rollup_config(&global_state.rollup_config_hash().unpack())?;
+            let max_timestamp = obtain_max_timestmap_via_lock_script(
+                &rollup_type_hash.pack(),
+                &config.withdrawal_script_type_hash(),
+            )?
+            .unwrap_or_default();
+            if !is_finalized(&config, &rollup_type_hash.pack(), max_timestamp)? {
+                return Err(Error::NotFinalized);
             }
 
             // withdrawal lock is finalized, unlock for owner
