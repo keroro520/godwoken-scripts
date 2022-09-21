@@ -4,20 +4,9 @@ use ckb_std::{
     ckb_constants::Source,
     high_level::{load_cell_lock, load_header, QueryIter},
 };
-use gw_types::core::ScriptHashType;
+use gw_types::core::{ScriptHashType, Timepoint};
 use gw_types::packed::{Byte32, RollupConfig};
 use gw_types::prelude::{Entity, Unpack};
-
-// Note: Godwoken's finality rule is based on block count before upgrade2022,
-// configurated via `RollupConfig.finality_blocks`. At upgrade2022, we reuse
-// that configuration for compatibility.
-//
-/// Convert the finality unit from block count to duration in seconds
-fn finality_duration_in_secs(finality_blocks: u64) -> u64 {
-    // 7 * 24 * 60 * 60 / 16800 = 36
-    const BLOCK_INTERVAL_IN_SECONDS: u64 = 36;
-    finality_blocks * BLOCK_INTERVAL_IN_SECONDS
-}
 
 /// Determines if the given `timestamp` is finalized based on the finality rule.
 ///
@@ -34,9 +23,20 @@ pub fn is_finalized(
     } else {
         max_header_timestamp
     };
-    let finality_duration_in_secs =
-        finality_duration_in_secs(rollup_config.finality_blocks().unpack());
+    let finality_blocks: u64 = rollup_config.finality_blocks().unpack();
+    let finality_timepoint = Timepoint::from_full_value(finality_blocks);
+    let finality_duration_in_secs = finality_duration_in_secs(finality_timepoint);
     Ok(l1_timestamp >= timestamp + finality_duration_in_secs)
+}
+
+fn finality_duration_in_secs(finality_timepoint: Timepoint) -> u64 {
+    if finality_timepoint.is_block_number_based() {
+        // 7 * 24 * 60 * 60 / 16800 = 36
+        const BLOCK_INTERVAL_IN_SECONDS: u64 = 36;
+        finality_timepoint.value() * BLOCK_INTERVAL_IN_SECONDS
+    } else {
+        finality_timepoint.value()
+    }
 }
 
 /// Obtain the timestamp of the input rollup cell included block.
