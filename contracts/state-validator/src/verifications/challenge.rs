@@ -40,13 +40,13 @@ pub fn verify_enter_challenge(
     let witness = args.witness();
     let challenged_block = witness.raw_l2block();
     // check challenged block isn't finazlied
-    if !is_finalized_based_on_timestamp(
+    if is_finalized_based_on_timestamp(
         config,
         &rollup_type_hash.pack(),
         challenged_block.timestamp().unpack(),
     )? {
         debug!("enter challenge finalized block error");
-        return Err(Error::NotFinalized);
+        return Err(Error::InvalidChallengeTarget);
     }
     let valid = {
         let merkle_proof = CompiledMerkleProof(witness.block_proof().unpack());
