@@ -1,17 +1,16 @@
 use crate::{cells::rollup::search_rollup_cell, error::Error};
-use alloc::vec::Vec;
 use ckb_std::{
     ckb_constants::Source,
-    high_level::{load_cell_lock, load_header, QueryIter},
+    high_level::{load_header, QueryIter},
 };
-use gw_types::core::{ScriptHashType, Timepoint};
-use gw_types::packed::{Byte32, RollupConfig};
+use gw_types::core::Timepoint;
+use gw_types::packed::{Byte32, GlobalState, RollupConfig};
 use gw_types::prelude::{Entity, Unpack};
 
 /// Determines if the given `timestamp` is finalized based on the finality rule.
 ///
 /// See also: https://talk.nervos.org/t/optimize-godwoken-finality-and-on-chain-cost/6739
-pub fn is_finalized(
+pub fn is_finalized_based_on_timestamp(
     rollup_config: &RollupConfig,
     rollup_type_hash: &Byte32,
     timestamp: u64,
@@ -23,10 +22,14 @@ pub fn is_finalized(
     } else {
         max_header_timestamp
     };
-    let finality_blocks: u64 = rollup_config.finality_blocks().unpack();
-    let finality_timepoint = Timepoint::from_full_value(finality_blocks);
+    let finality_timepoint = Timepoint::from_full_value(rollup_config.finality_blocks().unpack());
     let finality_duration_in_secs = finality_duration_in_secs(finality_timepoint);
-    Ok(l1_timestamp >= timestamp + finality_duration_in_secs)
+    Ok(l1_timestamp > timestamp + finality_duration_in_secs)
+}
+
+pub fn is_finalized_based_on_block_number(global_state: &GlobalState, block_number: u64) -> bool {
+    let last_finalized_block_number: u64 = global_state.last_finalized_block_number().unpack();
+    block_number > last_finalized_block_number
 }
 
 fn finality_duration_in_secs(finality_timepoint: Timepoint) -> u64 {
@@ -64,46 +67,4 @@ fn obtain_max_timestamp_of_header_deps() -> Option<u64> {
             timestamp
         })
         .max()
-}
-
-/// Obtain the maximum timestamp of input cells that use the given lock script
-pub fn obtain_max_timestmap_via_lock_script(
-    rollup_type_hash: &Byte32,
-    lock_script_type_hash: &Byte32,
-) -> Result<Option<u64>, Error> {
-    let mut max_timestamp = None;
-    let mut buf = [0u8; 8];
-    for index in query_indexes_via_lock_script(rollup_type_hash, lock_script_type_hash) {
-        let header = load_header(index, Source::Input)?;
-        let timestamp = {
-            buf.copy_from_slice(header.raw().timestamp().as_slice());
-            let timestamp: u64 = u64::from_le_bytes(buf);
-            timestamp
-        };
-        if Some(timestamp) > max_timestamp {
-            max_timestamp = Some(timestamp);
-        }
-    }
-    Ok(max_timestamp)
-}
-
-fn query_indexes_via_lock_script(
-    rollup_type_hash: &Byte32,
-    lock_script_type_hash: &Byte32,
-) -> Vec<usize> {
-    QueryIter::new(load_cell_lock, Source::Input)
-        .enumerate()
-        .filter_map(|(index, lock)| {
-            let lock_args = lock.args();
-            let is_matched = lock_args.len() > 32
-                && &lock_args.as_slice()[..32] == rollup_type_hash.as_slice()
-                && lock.code_hash().as_slice() == lock_script_type_hash.as_slice()
-                && lock.hash_type() == ScriptHashType::Type.into();
-            if is_matched {
-                Some(index)
-            } else {
-                None
-            }
-        })
-        .collect()
 }
