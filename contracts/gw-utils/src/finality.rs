@@ -23,8 +23,8 @@ pub fn is_finalized_based_on_timestamp(
         max_header_timestamp
     };
     let finality_timepoint = Timepoint::from_full_value(rollup_config.finality_blocks().unpack());
-    let finality_duration_in_secs = finality_duration_in_secs(finality_timepoint);
-    Ok(l1_timestamp >= timestamp + finality_duration_in_secs)
+    let finality_duration_ms = finality_duration_ms(finality_timepoint);
+    Ok(l1_timestamp >= timestamp + finality_duration_ms)
 }
 
 pub fn is_finalized_based_on_block_number(global_state: &GlobalState, block_number: u64) -> bool {
@@ -32,11 +32,11 @@ pub fn is_finalized_based_on_block_number(global_state: &GlobalState, block_numb
     block_number <= last_finalized_block_number
 }
 
-fn finality_duration_in_secs(finality_timepoint: Timepoint) -> u64 {
+pub fn finality_duration_ms(finality_timepoint: Timepoint) -> u64 {
     if finality_timepoint.is_block_number_based() {
-        // 7 * 24 * 60 * 60 / 16800 = 36
-        const BLOCK_INTERVAL_IN_SECONDS: u64 = 36;
-        finality_timepoint.value() * BLOCK_INTERVAL_IN_SECONDS
+        // 7 * 24 * 60 * 60 / 16800 * 1000 = 36000
+        const BLOCK_INTERVAL_IN_MILLISECONDS: u64 = 36000;
+        finality_timepoint.value() * BLOCK_INTERVAL_IN_MILLISECONDS
     } else {
         finality_timepoint.value()
     }
