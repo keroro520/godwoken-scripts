@@ -11,7 +11,8 @@ use gw_utils::{
     },
     ckb_std::debug,
     ckb_std::high_level::load_cell_lock,
-    finality::{is_finalized, obtain_max_timestmap_via_lock_script},
+    finality::{is_finalized_based_on_block_number, is_finalized_based_on_timestamp},
+    gw_types::core::Timepoint,
     gw_types::packed::{DepositLockArgs, DepositLockArgsReader, RollupActionUnionReader},
 };
 
@@ -60,19 +61,23 @@ pub fn main() -> Result<(), Error> {
         Some(state) => state,
         None => return Err(Error::RollupCellNotFound),
     };
-
     let config = load_rollup_config(&global_state.rollup_config_hash().unpack())?;
-    let max_timestamp = obtain_max_timestmap_via_lock_script(
-        &rollup_type_hash.pack(),
-        &config.custodian_script_type_hash(),
-    )?
-    .unwrap_or_default();
-    if is_finalized(&config, &rollup_type_hash.pack(), max_timestamp)? {
-        debug!("there are not-finalized custodian locked cells");
-        return Ok(());
-    }
+
+    let timepoint = Timepoint::from_full_value(lock_args.deposit_block_number().unpack());
+    if timepoint.is_timestamp_based() {
+        let timestamp = timepoint.value();
+        if is_finalized_based_on_timestamp(&config, &rollup_type_hash.pack(), timestamp)? {
+            return Ok(());
+        }
+    } else {
+        let block_number = timepoint.value();
+        if is_finalized_based_on_block_number(&global_state, block_number) {
+            return Ok(());
+        }
+    };
 
     // the submitter try to prove the deposit is reverted.
+    debug!("there are not-finalized custodian locked cells");
 
     // read the args
     let witness_args = load_witness_args(0, Source::GroupInput)?;
