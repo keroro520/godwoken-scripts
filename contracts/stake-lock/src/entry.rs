@@ -16,12 +16,14 @@ use crate::ckb_std::{
 };
 
 use gw_utils::cells::{
-    rollup::{search_rollup_cell, search_rollup_state},
+    rollup::{load_rollup_config, search_rollup_cell, search_rollup_state},
     utils::search_lock_hash,
 };
+use gw_utils::finality::{is_finalized_based_on_block_number, is_finalized_based_on_timestamp};
 use gw_utils::gw_types;
 
 use gw_types::{
+    core::Timepoint,
     packed::{StakeLockArgs, StakeLockArgsReader},
     prelude::*,
 };
@@ -52,14 +54,23 @@ pub fn main() -> Result<(), Error> {
     // Unlock by User
     // read global state from rollup cell in deps
     if let Some(global_state) = search_rollup_state(&rollup_type_hash, Source::CellDep)? {
-        let stake_block_number: u64 = lock_args.stake_block_number().unpack();
-        let last_finalized_block_number: u64 = global_state.last_finalized_block_number().unpack();
+        // check if the stake cells are finalized
+        let config = load_rollup_config(&global_state.rollup_config_hash().unpack())?;
+        let timepoint = Timepoint::from_full_value(lock_args.stake_block_number().unpack());
+        if timepoint.is_timestamp_based() {
+            let timestamp = timepoint.value();
+            if !is_finalized_based_on_timestamp(&config, &rollup_type_hash.pack(), timestamp)? {
+                return Err(Error::NotFinalized);
+            }
+        } else {
+            let block_number = timepoint.value();
+            if !is_finalized_based_on_block_number(&global_state, block_number) {
+                return Err(Error::NotFinalized);
+            }
+        }
 
-        // 1. check if stake_block_number is finalized
         // 2. check if owner_lock_hash exists in input cells
-        if stake_block_number <= last_finalized_block_number
-            && search_lock_hash(&lock_args.owner_lock_hash().unpack(), Source::Input).is_some()
-        {
+        if search_lock_hash(&lock_args.owner_lock_hash().unpack(), Source::Input).is_some() {
             return Ok(());
         }
     }

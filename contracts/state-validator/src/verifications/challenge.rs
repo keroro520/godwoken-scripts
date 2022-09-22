@@ -10,6 +10,7 @@ use gw_utils::{
     cells::lock_cells::{collect_burn_cells, find_challenge_cell},
     ckb_std::{ckb_constants::Source, debug},
     error::Error,
+    finality::is_finalized_based_on_timestamp,
 };
 use gw_utils::{cells::types::ChallengeCell, gw_types};
 use gw_utils::{
@@ -39,9 +40,11 @@ pub fn verify_enter_challenge(
     let witness = args.witness();
     let challenged_block = witness.raw_l2block();
     // check challenged block isn't finazlied
-    if prev_global_state.last_finalized_block_number().unpack()
-        >= challenged_block.number().unpack()
-    {
+    if is_finalized_based_on_timestamp(
+        config,
+        &rollup_type_hash.pack(),
+        challenged_block.timestamp().unpack(),
+    )? {
         debug!("enter challenge finalized block error");
         return Err(Error::InvalidChallengeTarget);
     }

@@ -12,13 +12,14 @@ use gw_utils::ckb_std::{
     debug,
     high_level::{load_cell_lock_hash, QueryIter},
 };
+use gw_utils::finality::{is_finalized_based_on_block_number, is_finalized_based_on_timestamp};
 use gw_utils::gw_types::packed::{
     CustodianLockArgs, CustodianLockArgsReader, RollupActionUnionReader,
     UnlockWithdrawalWitnessUnion, WithdrawalLockArgs,
 };
 use gw_utils::{
     cells::rollup::MAX_ROLLUP_WITNESS_SIZE,
-    gw_types::{self, core::ScriptHashType},
+    gw_types::{self, core::ScriptHashType, core::Timepoint},
 };
 use gw_utils::{cells::utils::search_lock_hash, ckb_std::high_level::load_cell_lock};
 
@@ -162,14 +163,21 @@ pub fn main() -> Result<(), Error> {
                         .ok_or(Error::RollupCellNotFound)?
                 }
             };
-            // check finality
-            let withdrawal_block_number: u64 = lock_args.withdrawal_block_number().unpack();
-            let last_finalized_block_number: u64 =
-                global_state.last_finalized_block_number().unpack();
 
-            if withdrawal_block_number > last_finalized_block_number {
-                // not yet finalized
-                return Err(Error::InvalidArgs);
+            // check finality
+            let timepoint =
+                Timepoint::from_full_value(lock_args.withdrawal_block_number().unpack());
+            if timepoint.is_timestamp_based() {
+                let config = load_rollup_config(&global_state.rollup_config_hash().unpack())?;
+                let timestamp = timepoint.value();
+                if !is_finalized_based_on_timestamp(&config, &rollup_type_hash.pack(), timestamp)? {
+                    return Err(Error::NotFinalized);
+                }
+            } else {
+                let block_number = timepoint.value();
+                if !is_finalized_based_on_block_number(&global_state, block_number) {
+                    return Err(Error::NotFinalized);
+                }
             }
 
             // withdrawal lock is finalized, unlock for owner

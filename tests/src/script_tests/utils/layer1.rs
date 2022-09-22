@@ -4,7 +4,7 @@ use ckb_types::{
     bytes::Bytes,
     core::{
         cell::{CellMetaBuilder, ResolvedTransaction},
-        EpochExt, HeaderView, ScriptHashType, TransactionView,
+        EpochExt, HeaderView, ScriptHashType, TransactionInfo, TransactionView,
     },
     packed::{Byte32, CellInput, CellOutput, OutPoint, Script, Transaction, Uint64},
     prelude::*,
@@ -21,6 +21,12 @@ pub struct DummyDataLoader {
     pub cells: HashMap<OutPoint, (CellOutput, Bytes)>,
     pub headers: HashMap<Byte32, HeaderView>,
     pub epoches: HashMap<Byte32, EpochExt>,
+
+    /// For syscall `load_header` with `Source::Input` and `Source::CellDep`,
+    /// CKB-VM find the block header referenced via
+    /// `cell.transaction_info.block_hash`.
+    /// See more: https://github.com/nervosnetwork/ckb/blob/d3fddf863be951b128e2978077fa747bad096e9a/script/src/syscalls/load_header.rs#L47-L59
+    pub transaction_infos: HashMap<OutPoint, TransactionInfo>,
 }
 
 impl CellDataProvider for DummyDataLoader {
@@ -138,11 +144,20 @@ pub fn build_resolved_tx(
     for i in 0..tx.inputs().len() {
         let previous_out_point = tx.inputs().get(i).unwrap().previous_output();
         let (input_output, input_data) = data_loader.cells.get(&previous_out_point).unwrap();
-        resolved_inputs.push(
-            CellMetaBuilder::from_cell_output(input_output.to_owned(), input_data.to_owned())
-                .out_point(previous_out_point)
-                .build(),
-        );
+        let input_cell_meta = match data_loader.transaction_infos.get(&previous_out_point) {
+            Some(transaction_info) => {
+                CellMetaBuilder::from_cell_output(input_output.to_owned(), input_data.to_owned())
+                    .out_point(previous_out_point)
+                    .transaction_info(transaction_info.clone())
+                    .build()
+            }
+            None => {
+                CellMetaBuilder::from_cell_output(input_output.to_owned(), input_data.to_owned())
+                    .out_point(previous_out_point)
+                    .build()
+            }
+        };
+        resolved_inputs.push(input_cell_meta);
     }
 
     ResolvedTransaction {

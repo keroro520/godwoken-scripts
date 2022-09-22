@@ -35,7 +35,7 @@ fn test_unlock_withdrawal_via_finalize_by_input_owner_cell() {
     let rollup_type_hash = rollup_type_script.hash();
     let (mut verify_ctx, script_ctx) = build_verify_context();
 
-    let last_finalized_block_number = rand::random::<u64>() + 100;
+    let last_finalized_block_number = 100;
     let rollup_cell = {
         let global_state = GlobalState::new_builder()
             .last_finalized_block_number(last_finalized_block_number.pack())
@@ -174,7 +174,7 @@ fn test_unlock_withdrawal_via_finalize_by_switch_indexed_output_to_owner_lock() 
     let rollup_type_hash = rollup_type_script.hash();
     let (mut verify_ctx, script_ctx) = build_verify_context();
 
-    let last_finalized_block_number = rand::random::<u64>() + 100;
+    let last_finalized_block_number = (rand::random::<u32>() + 100) as u64;
     let rollup_cell = {
         let global_state = GlobalState::new_builder()
             .last_finalized_block_number(last_finalized_block_number.pack())
@@ -343,7 +343,7 @@ fn test_unlock_withdrawal_via_finalize_fallback_to_input_owner_cell() {
     let rollup_type_hash = rollup_type_script.hash();
     let (mut verify_ctx, script_ctx) = build_verify_context();
 
-    let last_finalized_block_number = rand::random::<u64>() + 100;
+    let last_finalized_block_number = (rand::random::<u32>() + 100) as u64;
     let rollup_cell = {
         let global_state = GlobalState::new_builder()
             .last_finalized_block_number(last_finalized_block_number.pack())
