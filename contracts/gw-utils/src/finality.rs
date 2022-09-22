@@ -1,6 +1,7 @@
 use crate::{cells::rollup::search_rollup_cell, error::Error};
 use ckb_std::{
     ckb_constants::Source,
+    debug,
     high_level::{load_header, QueryIter},
 };
 use gw_types::core::Timepoint;
@@ -24,6 +25,10 @@ pub fn is_finalized_based_on_timestamp(
     };
     let finality_timepoint = Timepoint::from_full_value(rollup_config.finality_blocks().unpack());
     let finality_duration_ms = finality_duration_ms(finality_timepoint);
+    debug!(
+        "[is_finalized_based_on_timestamp] is_finalized: {}, l1_timestamp: {}, timestamp: {}, finality_duration_ms: {}",
+        l1_timestamp >= timestamp + finality_duration_ms, l1_timestamp, timestamp, finality_duration_ms
+    );
     Ok(l1_timestamp >= timestamp + finality_duration_ms)
 }
 
