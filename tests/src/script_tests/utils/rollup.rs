@@ -348,7 +348,7 @@ pub fn build_always_success_cell(
         .build()
 }
 
-pub fn calculate_state_validator_type_id(input_out_point: ckb_types::packed::OutPoint) -> [u8; 32] {
+pub fn calculate_type_id(input_out_point: ckb_types::packed::OutPoint) -> [u8; 32] {
     let input = ckb_types::packed::CellInput::new_builder()
         .previous_output(input_out_point)
         .build();

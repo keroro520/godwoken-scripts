@@ -7,8 +7,8 @@ use crate::script_tests::utils::init_env_log;
 use crate::script_tests::utils::layer1::build_simple_tx_with_out_point;
 use crate::script_tests::utils::layer1::random_out_point;
 use crate::script_tests::utils::rollup::{
-    build_always_success_cell, build_rollup_locked_cell, build_type_id_script,
-    calculate_state_validator_type_id, CellContext, CellContextParam,
+    build_always_success_cell, build_rollup_locked_cell, build_type_id_script, calculate_type_id,
+    CellContext, CellContextParam,
 };
 use crate::testing_tool::chain::setup_chain_with_account_lock_manage;
 use crate::testing_tool::chain::{apply_block_result, construct_block};
@@ -64,7 +64,7 @@ pub(crate) fn build_merkle_proof(leaves: &[H256], indices: &[u32]) -> CKBMerkleP
 async fn test_burn_challenge_capacity() {
     init_env_log();
     let input_out_point = random_out_point();
-    let type_id = calculate_state_validator_type_id(input_out_point.clone());
+    let type_id = calculate_type_id(input_out_point.clone());
     let rollup_type_script = {
         Script::new_builder()
             .code_hash(Pack::pack(&*STATE_VALIDATOR_CODE_HASH))
