@@ -9,10 +9,13 @@ use crate::script_tests::utils::rollup::{
     build_always_success_cell, build_rollup_locked_cell, build_type_id_script,
     calculate_state_validator_type_id, CellContext, CellContextParam,
 };
-use crate::testing_tool::chain::{apply_block_result, construct_block, setup_chain};
+use crate::testing_tool::chain::{
+    apply_block_result, construct_block, construct_block_from_timestamp, setup_chain,
+};
 use crate::testing_tool::programs::{ALWAYS_SUCCESS_CODE_HASH, STATE_VALIDATOR_CODE_HASH};
 use ckb_error::assert_error_eq;
 use ckb_script::ScriptError;
+use ckb_types::core::{HeaderBuilder, TransactionInfo};
 use ckb_types::packed::CellOutput;
 use ckb_types::prelude::{Pack as CKBPack, Unpack};
 use gw_chain::chain::Chain;
@@ -53,7 +56,7 @@ async fn test_enter_challenge() {
     let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
     let challenge_lock_type = build_type_id_script(b"challenge_lock_type_id");
     let challenge_script_type_hash: [u8; 32] = challenge_lock_type.calc_script_hash().unpack();
-    let finality_blocks = 10;
+    let finality_blocks: u64 = 10;
     let rollup_config = RollupConfig::new_builder()
         .challenge_script_type_hash(Pack::pack(&challenge_script_type_hash))
         .finality_blocks(Pack::pack(&finality_blocks))
@@ -170,7 +173,7 @@ async fn test_enter_challenge() {
             let mem_pool = chain.mem_pool().as_ref().unwrap();
             let mut mem_pool = mem_pool.lock().await;
             mem_pool.push_transaction(tx).await.unwrap();
-            construct_block(&chain, &mut mem_pool, Vec::default())
+            construct_block_from_timestamp(&chain, &mut mem_pool, Vec::default(), 1557311767000)
                 .await
                 .unwrap()
         };
@@ -248,6 +251,34 @@ async fn test_enter_challenge() {
         .status(Status::Halting.into())
         .build()
         .as_bytes();
+
+    // Prepare the L1 Header and TransactionInfo of the rollup cell, which will
+    // be used for finality check.
+    let rollup_cell_header = HeaderBuilder::default()
+        .timestamp({
+            // Ensure the challenged block **is not finalized**
+            const BLOCK_INTERVAL_IN_MILLISECONDS: u64 = 36000;
+            let finality_duration_ms = finality_blocks * BLOCK_INTERVAL_IN_MILLISECONDS;
+            let challenged_block_timestamp: u64 =
+                gw_types::prelude::Unpack::unpack(&challenged_block.raw().timestamp());
+            let rollup_cell_timestamp = challenged_block_timestamp + finality_duration_ms - 1;
+            CKBPack::pack(&rollup_cell_timestamp)
+        })
+        .build();
+    let rollup_cell_tx_info = TransactionInfo {
+        block_hash: rollup_cell_header.hash(),
+        block_number: rollup_cell_header.number(),
+        block_epoch: rollup_cell_header.epoch(),
+        index: 1,
+    };
+    ctx.inner
+        .transaction_infos
+        .insert(input_out_point.clone(), rollup_cell_tx_info);
+    ctx.inner
+        .headers
+        .insert(rollup_cell_header.hash(), rollup_cell_header.clone());
+
+    // Build tx
     let tx = build_simple_tx_with_out_point(
         &mut ctx.inner,
         (rollup_cell.clone(), initial_rollup_cell_data),
@@ -261,6 +292,7 @@ async fn test_enter_challenge() {
     .cell_dep(ctx.always_success_dep.clone())
     .cell_dep(ctx.state_validator_dep.clone())
     .cell_dep(ctx.rollup_config_dep.clone())
+    .header_dep(rollup_cell_header.hash())
     .witness(CKBPack::pack(&witness.as_bytes()))
     .build();
     ctx.verify_tx(tx).expect("return success");
@@ -452,6 +484,33 @@ async fn test_enter_challenge_finalized_block() {
         .status(Status::Halting.into())
         .build()
         .as_bytes();
+
+    // Prepare the L1 Header and TransactionInfo of the rollup cell, which will
+    // be used for finality check.
+    let rollup_cell_header = HeaderBuilder::default()
+        .timestamp({
+            // Ensure the challenged block **is finalized**
+            const BLOCK_INTERVAL_IN_MILLISECONDS: u64 = 36000;
+            let finality_duration_ms = finality_blocks * BLOCK_INTERVAL_IN_MILLISECONDS;
+            let challenged_block_timestamp: u64 =
+                gw_types::prelude::Unpack::unpack(&challenged_block.raw().timestamp());
+            let rollup_cell_timestamp = challenged_block_timestamp + finality_duration_ms;
+            CKBPack::pack(&rollup_cell_timestamp)
+        })
+        .build();
+    let rollup_cell_tx_info = TransactionInfo {
+        block_hash: rollup_cell_header.hash(),
+        block_number: rollup_cell_header.number(),
+        block_epoch: rollup_cell_header.epoch(),
+        index: 1,
+    };
+    ctx.inner
+        .transaction_infos
+        .insert(input_out_point.clone(), rollup_cell_tx_info);
+    ctx.inner
+        .headers
+        .insert(rollup_cell_header.hash(), rollup_cell_header.clone());
+
     let tx = build_simple_tx_with_out_point(
         &mut ctx.inner,
         (rollup_cell.clone(), initial_rollup_cell_data),
@@ -465,6 +524,7 @@ async fn test_enter_challenge_finalized_block() {
     .cell_dep(ctx.always_success_dep.clone())
     .cell_dep(ctx.state_validator_dep.clone())
     .cell_dep(ctx.rollup_config_dep.clone())
+    .header_dep(rollup_cell_header.hash())
     .witness(CKBPack::pack(&witness.as_bytes()))
     .build();
 
