@@ -303,7 +303,7 @@ impl CellContext {
     }
 }
 
-pub fn build_type_id_script(name: &[u8]) -> ckb_types::packed::Script {
+pub fn named_always_success_script(name: &[u8]) -> ckb_types::packed::Script {
     ckb_types::packed::Script::new_builder()
         .code_hash(CKBPack::pack(&ALWAYS_SUCCESS_CODE_HASH.clone()))
         .args(CKBPack::pack(&Bytes::from(name.to_vec())))
@@ -312,7 +312,7 @@ pub fn build_type_id_script(name: &[u8]) -> ckb_types::packed::Script {
 
 fn random_type_id_script() -> ckb_types::packed::Script {
     let random_bytes: [u8; 32] = rand::random();
-    build_type_id_script(&random_bytes)
+    named_always_success_script(&random_bytes)
 }
 
 pub fn build_rollup_locked_cell(
@@ -337,6 +337,7 @@ pub fn build_rollup_locked_cell(
         .build()
 }
 
+/// Build always-success cell
 pub fn build_always_success_cell(
     capacity: u64,
     type_: Option<ckb_types::packed::Script>,
@@ -348,6 +349,7 @@ pub fn build_always_success_cell(
         .build()
 }
 
+/// Calculate type_id according to the CKB built-in TYPE_ID rule
 pub fn calculate_type_id(input_out_point: ckb_types::packed::OutPoint) -> [u8; 32] {
     let input = ckb_types::packed::CellInput::new_builder()
         .previous_output(input_out_point)

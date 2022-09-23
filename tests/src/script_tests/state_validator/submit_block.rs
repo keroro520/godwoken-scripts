@@ -4,7 +4,7 @@ use crate::script_tests::utils::layer1::{
     build_simple_tx_with_out_point_and_since, random_out_point, since_timestamp,
 };
 use crate::script_tests::utils::rollup::{
-    build_always_success_cell, build_rollup_locked_cell, build_type_id_script, calculate_type_id,
+    build_always_success_cell, build_rollup_locked_cell, named_always_success_script, calculate_type_id,
     CellContext, CellContextParam,
 };
 use crate::testing_tool::chain::{build_sync_tx, construct_block_from_timestamp};
@@ -53,7 +53,7 @@ async fn test_submit_block() {
             .build()
     };
     // rollup lock & config
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
     let stake_script_type_hash: [u8; 32] = stake_lock_type.calc_script_hash().unpack();
     let rollup_config = RollupConfig::new_builder()
         .stake_script_type_hash(Pack::pack(&stake_script_type_hash))
@@ -172,7 +172,7 @@ async fn test_downgrade_rollup_cell() {
             .build()
     };
     // rollup lock & config
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
     let stake_script_type_hash: [u8; 32] = stake_lock_type.calc_script_hash().unpack();
     let rollup_config = RollupConfig::new_builder()
         .stake_script_type_hash(Pack::pack(&stake_script_type_hash))
@@ -306,7 +306,7 @@ async fn test_v1_block_timestamp_smaller_or_equal_than_previous_block_in_submit_
             .build()
     };
     // rollup lock & config
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
     let stake_script_type_hash: [u8; 32] = stake_lock_type.calc_script_hash().unpack();
     let rollup_config = RollupConfig::new_builder()
         .stake_script_type_hash(Pack::pack(&stake_script_type_hash))
@@ -513,7 +513,7 @@ async fn test_v1_block_timestamp_bigger_than_rollup_input_since_in_submit_block(
             .build()
     };
     // rollup lock & config
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
     let stake_script_type_hash: [u8; 32] = stake_lock_type.calc_script_hash().unpack();
     let rollup_config = RollupConfig::new_builder()
         .stake_script_type_hash(Pack::pack(&stake_script_type_hash))
@@ -648,7 +648,7 @@ async fn test_v0_v1_wrong_global_state_tip_block_timestamp_in_submit_block() {
             .build()
     };
     // rollup lock & config
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
     let stake_script_type_hash: [u8; 32] = stake_lock_type.calc_script_hash().unpack();
     let rollup_config = RollupConfig::new_builder()
         .stake_script_type_hash(Pack::pack(&stake_script_type_hash))
@@ -855,13 +855,13 @@ async fn test_check_reverted_cells_in_submit_block() {
             .build()
     };
     // rollup lock & config
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
     let stake_script_type_hash: [u8; 32] = stake_lock_type.calc_script_hash().unpack();
-    let deposit_lock_type = build_type_id_script(b"deposit_lock_type_id");
+    let deposit_lock_type = named_always_success_script(b"deposit_lock_type_id");
     let deposit_script_type_hash: [u8; 32] = deposit_lock_type.calc_script_hash().unpack();
-    let custodian_lock_type = build_type_id_script(b"custodian_lock_type_id");
+    let custodian_lock_type = named_always_success_script(b"custodian_lock_type_id");
     let custodian_script_type_hash: [u8; 32] = custodian_lock_type.calc_script_hash().unpack();
-    let withdrawal_lock_type = build_type_id_script(b"withdrawal_lock_type_id");
+    let withdrawal_lock_type = named_always_success_script(b"withdrawal_lock_type_id");
     let withdrawal_script_type_hash: [u8; 32] = withdrawal_lock_type.calc_script_hash().unpack();
     let rollup_config = RollupConfig::new_builder()
         .stake_script_type_hash(Pack::pack(&stake_script_type_hash))
@@ -1112,11 +1112,11 @@ async fn test_withdrawal_cell_lock_args_with_owner_lock_in_submit_block() {
     };
 
     // rollup lock & config
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
     let stake_script_type_hash: [u8; 32] = stake_lock_type.calc_script_hash().unpack();
-    let custodian_lock_type = build_type_id_script(b"custodian_lock_type_id");
+    let custodian_lock_type = named_always_success_script(b"custodian_lock_type_id");
     let custodian_script_type_hash: [u8; 32] = custodian_lock_type.calc_script_hash().unpack();
-    let withdrawal_lock_type = build_type_id_script(b"withdrawal_lock_type_id");
+    let withdrawal_lock_type = named_always_success_script(b"withdrawal_lock_type_id");
     let withdrawal_script_type_hash: [u8; 32] = withdrawal_lock_type.calc_script_hash().unpack();
     let rollup_config = RollupConfig::new_builder()
         .stake_script_type_hash(Pack::pack(&stake_script_type_hash))

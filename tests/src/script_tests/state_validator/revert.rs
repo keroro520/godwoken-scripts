@@ -6,7 +6,7 @@ use crate::script_tests::utils::init_env_log;
 use crate::script_tests::utils::layer1::build_simple_tx_with_out_point;
 use crate::script_tests::utils::layer1::{always_success_script, random_out_point};
 use crate::script_tests::utils::rollup::{
-    build_always_success_cell, build_rollup_locked_cell, build_type_id_script, calculate_type_id,
+    build_always_success_cell, build_rollup_locked_cell, named_always_success_script, calculate_type_id,
     CellContext, CellContextParam,
 };
 use crate::testing_tool::chain::{apply_block_result, construct_block, setup_chain};
@@ -58,9 +58,9 @@ async fn test_revert() {
         .code_hash(CKBPack::pack(&[0u8; 32]))
         .build();
     let reward_burn_lock_hash: [u8; 32] = reward_burn_lock.calc_script_hash().unpack();
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
     let stake_script_type_hash: [u8; 32] = stake_lock_type.calc_script_hash().unpack();
-    let challenge_lock_type = build_type_id_script(b"challenge_lock_type_id");
+    let challenge_lock_type = named_always_success_script(b"challenge_lock_type_id");
     let challenge_script_type_hash: [u8; 32] = challenge_lock_type.calc_script_hash().unpack();
     let finality_blocks = 10;
     let rollup_config = RollupConfig::new_builder()

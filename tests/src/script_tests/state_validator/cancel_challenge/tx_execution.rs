@@ -7,7 +7,7 @@ use crate::script_tests::utils::init_env_log;
 use crate::script_tests::utils::layer1::build_simple_tx_with_out_point;
 use crate::script_tests::utils::layer1::random_out_point;
 use crate::script_tests::utils::rollup::{
-    build_always_success_cell, build_rollup_locked_cell, build_type_id_script, calculate_type_id,
+    build_always_success_cell, build_rollup_locked_cell, named_always_success_script, calculate_type_id,
     CellContext, CellContextParam,
 };
 use crate::testing_tool::chain::setup_chain;
@@ -55,10 +55,10 @@ async fn test_cancel_tx_execute() {
             .build()
     };
     // rollup lock & config
-    let stake_lock_type = build_type_id_script(b"stake_lock_type_id");
-    let challenge_lock_type = build_type_id_script(b"challenge_lock_type_id");
-    let eoa_lock_type = build_type_id_script(b"eoa_lock_type_id");
-    let l2_sudt_type = build_type_id_script(b"l2_sudt_type_id");
+    let stake_lock_type = named_always_success_script(b"stake_lock_type_id");
+    let challenge_lock_type = named_always_success_script(b"challenge_lock_type_id");
+    let eoa_lock_type = named_always_success_script(b"eoa_lock_type_id");
+    let l2_sudt_type = named_always_success_script(b"l2_sudt_type_id");
     let challenge_script_type_hash: [u8; 32] = challenge_lock_type.calc_script_hash().unpack();
     let l2_sudt_type_hash: [u8; 32] = l2_sudt_type.calc_script_hash().unpack();
 
