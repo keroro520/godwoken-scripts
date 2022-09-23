@@ -34,15 +34,15 @@ pub struct CellContextParam {
 impl Default for CellContextParam {
     fn default() -> Self {
         Self {
-            stake_lock_type: random_type_id_script(),
-            challenge_lock_type: random_type_id_script(),
-            deposit_lock_type: random_type_id_script(),
-            custodian_lock_type: random_type_id_script(),
-            withdrawal_lock_type: random_type_id_script(),
-            l2_sudt_type: random_type_id_script(),
-            always_success_type: random_type_id_script(),
-            eoa_lock_type: random_type_id_script(),
-            eth_lock_type: random_type_id_script(),
+            stake_lock_type: random_always_success_script(),
+            challenge_lock_type: random_always_success_script(),
+            deposit_lock_type: random_always_success_script(),
+            custodian_lock_type: random_always_success_script(),
+            withdrawal_lock_type: random_always_success_script(),
+            l2_sudt_type: random_always_success_script(),
+            always_success_type: random_always_success_script(),
+            eoa_lock_type: random_always_success_script(),
+            eth_lock_type: random_always_success_script(),
         }
     }
 }
@@ -310,7 +310,7 @@ pub fn named_always_success_script(name: &[u8]) -> ckb_types::packed::Script {
         .build()
 }
 
-fn random_type_id_script() -> ckb_types::packed::Script {
+fn random_always_success_script() -> ckb_types::packed::Script {
     let random_bytes: [u8; 32] = rand::random();
     named_always_success_script(&random_bytes)
 }
