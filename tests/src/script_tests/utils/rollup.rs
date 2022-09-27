@@ -310,7 +310,7 @@ pub fn named_always_success_script(name: &[u8]) -> ckb_types::packed::Script {
         .build()
 }
 
-fn random_always_success_script() -> ckb_types::packed::Script {
+pub fn random_always_success_script() -> ckb_types::packed::Script {
     let random_bytes: [u8; 32] = rand::random();
     named_always_success_script(&random_bytes)
 }
