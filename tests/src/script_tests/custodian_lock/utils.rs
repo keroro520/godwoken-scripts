@@ -1,10 +1,9 @@
 use crate::script_tests::utils::rollup::{random_always_success_script, CellContext};
-use crate::testing_tool::programs::{ALWAYS_SUCCESS_CODE_HASH, CUSTODIAN_LOCK_PROGRAM};
+use crate::testing_tool::programs::CUSTODIAN_LOCK_PROGRAM;
 use ckb_types::{
     packed::{CellOutput, OutPoint, Script},
     prelude::*,
 };
-use gw_types::bytes::Bytes;
 use gw_types::packed::{GlobalState, RollupConfig};
 
 const BLOCK_INTERVAL_IN_MILLISECONDS: u64 = 36000;
