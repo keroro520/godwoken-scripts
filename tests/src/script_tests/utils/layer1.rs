@@ -127,38 +127,32 @@ pub fn build_resolved_tx(
     data_loader: &DummyDataLoader,
     tx: &TransactionView,
 ) -> ResolvedTransaction {
-    let resolved_cell_deps = tx
-        .cell_deps()
-        .into_iter()
-        .map(|dep| {
-            let deps_out_point = dep.clone();
-            let (dep_output, dep_data) =
-                data_loader.cells.get(&deps_out_point.out_point()).unwrap();
-            CellMetaBuilder::from_cell_output(dep_output.to_owned(), dep_data.to_owned())
-                .out_point(deps_out_point.out_point().clone())
-                .build()
-        })
-        .collect();
-
-    let mut resolved_inputs = Vec::new();
-    for i in 0..tx.inputs().len() {
-        let previous_out_point = tx.inputs().get(i).unwrap().previous_output();
-        let (input_output, input_data) = data_loader.cells.get(&previous_out_point).unwrap();
-        let input_cell_meta = match data_loader.transaction_infos.get(&previous_out_point) {
+    let get_cell_meta = |out_point: OutPoint| {
+        let (output, output_data) = data_loader.cells.get(&out_point).unwrap();
+        match data_loader.transaction_infos.get(&out_point) {
             Some(transaction_info) => {
-                CellMetaBuilder::from_cell_output(input_output.to_owned(), input_data.to_owned())
-                    .out_point(previous_out_point)
+                CellMetaBuilder::from_cell_output(output.to_owned(), output_data.to_owned())
+                    .out_point(out_point)
                     .transaction_info(transaction_info.clone())
                     .build()
             }
-            None => {
-                CellMetaBuilder::from_cell_output(input_output.to_owned(), input_data.to_owned())
-                    .out_point(previous_out_point)
-                    .build()
-            }
-        };
-        resolved_inputs.push(input_cell_meta);
-    }
+            None => CellMetaBuilder::from_cell_output(output.to_owned(), output_data.to_owned())
+                .out_point(out_point)
+                .build(),
+        }
+    };
+    let resolved_cell_deps = tx
+        .cell_deps()
+        .into_iter()
+        .map(|cell_dep| get_cell_meta(cell_dep.out_point()))
+        .collect();
+    let resolved_inputs = (0..tx.inputs().len())
+        .map(|i| {
+            let cell_input = tx.inputs().get(i).unwrap();
+            let out_point = cell_input.previous_output();
+            get_cell_meta(out_point)
+        })
+        .collect();
 
     ResolvedTransaction {
         transaction: tx.clone(),
