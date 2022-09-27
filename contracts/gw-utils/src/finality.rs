@@ -15,8 +15,9 @@ pub fn is_finalized_based_on_timestamp(
     rollup_config: &RollupConfig,
     rollup_type_hash: &Byte32,
     timestamp: u64,
+    rollup_cell_source: Source,
 ) -> Result<bool, Error> {
-    let rollup_cell_timestamp = obtain_timestamp_of_rollup_cell(rollup_type_hash)?;
+    let rollup_cell_timestamp = obtain_timestamp_of_rollup_cell(rollup_type_hash, rollup_cell_source)?;
     let max_header_timestamp = obtain_max_timestamp_of_header_deps().unwrap_or_default();
     let l1_timestamp = if rollup_cell_timestamp > max_header_timestamp {
         rollup_cell_timestamp
@@ -48,13 +49,13 @@ pub fn finality_duration_ms(finality_timepoint: Timepoint) -> u64 {
 }
 
 /// Obtain the timestamp of the input rollup cell included block.
-fn obtain_timestamp_of_rollup_cell(rollup_type_hash: &Byte32) -> Result<u64, Error> {
+fn obtain_timestamp_of_rollup_cell(rollup_type_hash: &Byte32, source: Source) -> Result<u64, Error> {
     let mut rollup_type_hash_array = [0u8; 32];
     rollup_type_hash_array.copy_from_slice(&rollup_type_hash.as_slice());
 
-    let index = search_rollup_cell(&rollup_type_hash_array, Source::Input)
+    let index = search_rollup_cell(&rollup_type_hash_array, source)
         .ok_or(Error::RollupCellNotFound)?;
-    let header = load_header(index, Source::Input)?;
+    let header = load_header(index, source)?;
 
     let mut buf = [0u8; 8];
     buf.copy_from_slice(header.raw().timestamp().as_slice());

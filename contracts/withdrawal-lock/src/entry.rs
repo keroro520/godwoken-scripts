@@ -170,7 +170,7 @@ pub fn main() -> Result<(), Error> {
             if timepoint.is_timestamp_based() {
                 let config = load_rollup_config(&global_state.rollup_config_hash().unpack())?;
                 let timestamp = timepoint.value();
-                if !is_finalized_based_on_timestamp(&config, &rollup_type_hash.pack(), timestamp)? {
+                if !is_finalized_based_on_timestamp(&config, &rollup_type_hash.pack(), timestamp, Source::CellDep)? {
                     return Err(Error::NotFinalized);
                 }
             } else {

@@ -66,7 +66,7 @@ pub fn main() -> Result<(), Error> {
     let timepoint = Timepoint::from_full_value(lock_args.deposit_block_number().unpack());
     if timepoint.is_timestamp_based() {
         let timestamp = timepoint.value();
-        if is_finalized_based_on_timestamp(&config, &rollup_type_hash.pack(), timestamp)? {
+        if is_finalized_based_on_timestamp(&config, &rollup_type_hash.pack(), timestamp, Source::Input)? {
             return Ok(());
         }
     } else {

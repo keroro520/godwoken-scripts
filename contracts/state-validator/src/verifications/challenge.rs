@@ -44,6 +44,7 @@ pub fn verify_enter_challenge(
         config,
         &rollup_type_hash.pack(),
         challenged_block.timestamp().unpack(),
+        Source::Input,
     )? {
         debug!("enter challenge finalized block error");
         return Err(Error::InvalidChallengeTarget);
