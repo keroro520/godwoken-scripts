@@ -1,4 +1,5 @@
 mod account_lock_scripts;
+mod custodian_lock;
 mod l2_scripts;
 mod l2_scripts_validator;
 mod state_validator;
