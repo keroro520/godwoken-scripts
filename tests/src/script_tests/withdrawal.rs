@@ -9,7 +9,7 @@ use crate::testing_tool::programs::{
 
 use ckb_error::assert_error_eq;
 use ckb_script::ScriptError;
-use ckb_types::core::TransactionView;
+use ckb_types::core::{HeaderBuilder, TransactionInfo, TransactionView};
 use ckb_types::prelude::{Builder, Entity};
 use gw_common::blake2b::new_blake2b;
 use gw_types::bytes::Bytes;
@@ -24,6 +24,184 @@ use secp256k1::rand::rngs::OsRng;
 use secp256k1::{Message, Secp256k1, SecretKey};
 
 const OWNER_CELL_NOT_FOUND_ERROR: i8 = 8;
+
+#[test]
+fn test_unlock_withdrawal_via_finalize_by_input_owner_cell_based_on_timestamp() {
+    init_env_log();
+
+    const ROLLUP_STATE_CELL_TIMESTAMP: u64 = 1555204979310;
+    const BLOCK_INTERVAL_IN_MILLISECONDS: u64 = 36000;
+    const ROLLUP_CONFIG_FINALITY_BLOCKS: u64 = 10;
+    const ROLLUP_CONFIG_FINALITY_DURATION_MS: u64 =
+        ROLLUP_CONFIG_FINALITY_BLOCKS * BLOCK_INTERVAL_IN_MILLISECONDS;
+    const DEFAULT_CAPACITY: u64 = 1000 * 10u64.pow(8);
+
+    let rollup_type_script = random_always_success_script();
+    let rollup_type_hash = rollup_type_script.hash();
+    let (mut verify_ctx, script_ctx) = build_verify_context();
+
+    let last_finalized_block_number = 100;
+    let rollup_cell = {
+        let global_state = GlobalState::new_builder()
+            .rollup_config_hash({
+                let (_, rollup_config) = verify_ctx
+                    .inner
+                    .cells
+                    .get(&verify_ctx.rollup_config_dep.out_point())
+                    .unwrap();
+                let rollup_config_data_hash =
+                    ckb_types::packed::CellOutput::calc_data_hash(&rollup_config);
+                gw_types::packed::Byte32::new_unchecked(rollup_config_data_hash.as_bytes())
+            })
+            .last_finalized_block_number(last_finalized_block_number.pack())
+            .build();
+
+        let output = CellOutput::new_builder()
+            .lock(random_always_success_script())
+            .type_(Some(rollup_type_script).pack())
+            .capacity(DEFAULT_CAPACITY.pack())
+            .build();
+
+        (output, global_state.as_bytes())
+    };
+    let rollup_dep = {
+        let out_point = verify_ctx.insert_cell(rollup_cell.0.to_ckb(), rollup_cell.1);
+        CellDep::new_builder().out_point(out_point.to_gw()).build()
+    };
+
+    let (sk, pk) = {
+        let secp = Secp256k1::new();
+        let mut rng = OsRng::new().unwrap();
+        secp.generate_keypair(&mut rng)
+    };
+    let (err_sk, _err_pk) = {
+        let secp = Secp256k1::new();
+        let mut rng = OsRng::new().unwrap();
+        secp.generate_keypair(&mut rng)
+    };
+    let owner_lock = {
+        let args = {
+            let mut buf = [0u8; 32];
+            let mut hasher = new_blake2b();
+            hasher.update(&pk.serialize());
+            hasher.finalize(&mut buf);
+
+            Bytes::copy_from_slice(&buf[..20])
+        };
+
+        Script::new_builder()
+            .code_hash(script_ctx.acp.script.hash().pack())
+            .hash_type(ScriptHashType::Type.into())
+            .args(args.pack())
+            .build()
+    };
+    let finalized_withdrawal_cell = {
+        let lock_args = WithdrawalLockArgs::new_builder()
+            .account_script_hash(random_always_success_script().hash().pack())
+            .withdrawal_block_hash(random_always_success_script().hash().pack())
+            .withdrawal_block_number({
+                let timestamp = ROLLUP_STATE_CELL_TIMESTAMP - ROLLUP_CONFIG_FINALITY_DURATION_MS;
+                gw_types::prelude::Pack::pack(&(timestamp | (1 << 63)))
+            })
+            .owner_lock_hash(owner_lock.hash().pack())
+            .build();
+        let mut args = Vec::new();
+        args.extend_from_slice(&lock_args.as_bytes());
+        args.extend_from_slice(&(owner_lock.as_bytes().len() as u32).to_be_bytes());
+        args.extend_from_slice(&owner_lock.as_bytes());
+
+        let output = build_rollup_locked_cell(
+            &rollup_type_hash,
+            &script_ctx.withdrawal.script.hash(),
+            DEFAULT_CAPACITY,
+            args.into(),
+        );
+
+        (output, 0u128.pack().as_bytes())
+    };
+    let finalized_withdrawal_input = {
+        let out_point =
+            verify_ctx.insert_cell(finalized_withdrawal_cell.0.clone(), 0u128.pack().as_bytes());
+        CellInput::new_builder()
+            .previous_output(out_point.to_gw())
+            .build()
+    };
+    let owner_input = {
+        let output = CellOutput::new_builder()
+            .capacity(DEFAULT_CAPACITY.pack())
+            .lock(owner_lock.clone())
+            .build();
+
+        let out_point = verify_ctx.insert_cell(output.to_ckb(), 0u128.pack().as_bytes());
+        CellInput::new_builder()
+            .previous_output(out_point.to_gw())
+            .build()
+    };
+    let output_cell = {
+        let output = CellOutput::new_builder()
+            .capacity((DEFAULT_CAPACITY * 2).pack())
+            .lock(owner_lock)
+            .build();
+
+        (output.to_ckb(), 0u128.pack().as_bytes())
+    };
+    let unlock_via_finalize_witness = {
+        let unlock_args = UnlockWithdrawalViaFinalize::new_builder().build();
+        let unlock_witness = UnlockWithdrawalWitness::new_builder()
+            .set(UnlockWithdrawalWitnessUnion::UnlockWithdrawalViaFinalize(
+                unlock_args,
+            ))
+            .build();
+        WitnessArgs::new_builder()
+            .lock(Some(unlock_witness.as_bytes()).pack())
+            .build()
+    };
+
+    // Build rollup_state_cell's header_dep
+    let rollup_state_header = HeaderBuilder::default()
+        .timestamp(ckb_types::prelude::Pack::pack(&ROLLUP_STATE_CELL_TIMESTAMP))
+        .build();
+    let rollup_state_tx_info = TransactionInfo {
+        block_hash: rollup_state_header.hash(),
+        block_number: rollup_state_header.number(),
+        block_epoch: rollup_state_header.epoch(),
+        index: 1,
+    };
+    verify_ctx
+        .inner
+        .transaction_infos
+        .insert(rollup_dep.out_point().to_ckb(), rollup_state_tx_info);
+    verify_ctx
+        .inner
+        .headers
+        .insert(rollup_state_header.hash(), rollup_state_header.clone());
+
+    let tx = build_simple_tx_with_out_point(
+        &mut verify_ctx.inner,
+        finalized_withdrawal_cell,
+        finalized_withdrawal_input.to_ckb().previous_output(),
+        output_cell,
+    )
+    .as_advanced_builder()
+    .witness(unlock_via_finalize_witness.as_bytes().to_ckb())
+    .input(owner_input.to_ckb())
+    .witness(Default::default())
+    .cell_dep(script_ctx.withdrawal.dep.to_ckb())
+    .cell_dep(script_ctx.acp.dep.to_ckb())
+    .cell_dep(script_ctx.secp256k1_data.dep.to_ckb())
+    .cell_dep(rollup_dep.to_ckb())
+    .cell_dep(verify_ctx.rollup_config_dep.clone())
+    .header_dep(rollup_state_header.hash())
+    .build();
+
+    let err_sign_tx = sign_tx(tx.clone(), 1, &err_sk);
+    verify_ctx
+        .verify_tx(err_sign_tx)
+        .expect_err("wrong privtate key");
+
+    let sign_tx = sign_tx(tx, 1, &sk);
+    verify_ctx.verify_tx(sign_tx).expect("success");
+}
 
 #[test]
 fn test_unlock_withdrawal_via_finalize_by_input_owner_cell() {
@@ -633,6 +811,7 @@ mod conversion {
             }
         };
     }
+    impl_to_ckb!(OutPoint);
     impl_to_ckb!(Script);
     impl_to_ckb!(CellInput);
     impl_to_ckb!(CellOutput);
